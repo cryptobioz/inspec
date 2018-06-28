@@ -26,6 +26,18 @@ class AwsS3Bucket < Inspec.resource(1)
     @bucket_policy ||= fetch_bucket_policy
   end
 
+  def bucket_lifecycle
+    @bucket_lifecycle ||= fetch_bucket_lifecycle
+  end
+
+  def bucket_cors
+    @bucket_cors ||= fetch_bucket_cors
+  end
+
+  def bucket_tagging
+    @bucket_tagging ||= fetch_bucket_tagging
+  end
+
   # RSpec will alias this to be_public
   def public?
     # first line just for formatting
@@ -33,6 +45,11 @@ class AwsS3Bucket < Inspec.resource(1)
       bucket_acl.any? { |g| g.grantee.type == 'Group' && g.grantee.uri =~ /AllUsers/ } || \
       bucket_acl.any? { |g| g.grantee.type == 'Group' && g.grantee.uri =~ /AuthenticatedUsers/ } || \
       bucket_policy.any? { |s| s.effect == 'Allow' && s.principal == '*' }
+  end
+
+  # RSpec will alias this to be_versioned
+  def versioned?
+    BackendFactory.create(inspec_runner).get_bucket_versioning(bucket: bucket_name).status == "Enabled" ? true : false
   end
 
   def has_default_encryption_enabled?
@@ -107,6 +124,40 @@ class AwsS3Bucket < Inspec.resource(1)
     end
   end
 
+  def fetch_bucket_lifecycle
+    backend = BackendFactory.create(inspec_runner)
+    catch_aws_errors do
+      begin
+        @bucket_lifecycle = backend.get_bucket_lifecycle(bucket: bucket_name).rules
+      rescue Aws::S3::Errors::NoSuchBucketLifecycle
+        @bucket_lifecycle = []
+      end
+    end
+  end
+
+  def fetch_bucket_cors
+    backend = BackendFactory.create(inspec_runner)
+    catch_aws_errors do
+      begin
+        @bucket_cors = backend.get_bucket_cors(bucket: bucket_name).cors_rules
+        rescue Aws::S3::Errors::NoSuchBucketCors
+        @bucket_cors = []
+      end
+    end
+  end
+
+  def fetch_bucket_tagging
+    backend = BackendFactory.create(inspec_runner)
+    catch_aws_errors do
+      begin
+        @bucket_tagging = backend.get_bucket_tagging(bucket: bucket_name).tag_set
+        rescue Aws::S3::Errors::NoSuchBucketTagging
+        @bucket_tagging = []
+      end
+    end
+  end
+
+
   # Uses the SDK API to really talk to AWS
   class Backend
     class AwsClientApi < AwsBackendBase
@@ -131,6 +182,22 @@ class AwsS3Bucket < Inspec.resource(1)
 
       def get_bucket_encryption(query)
         aws_service_client.get_bucket_encryption(query)
+      end
+
+      def get_bucket_lifecycle(query)
+        aws_service_client.get_bucket_lifecycle(query)
+      end
+
+      def get_bucket_versioning(query)
+        aws_service_client.get_bucket_versioning(query)
+      end
+
+      def get_bucket_cors(query)
+        aws_service_client.get_bucket_cors(query)
+      end
+
+      def get_bucket_tagging(query)
+        aws_service_client.get_bucket_tagging(query)
       end
     end
   end
