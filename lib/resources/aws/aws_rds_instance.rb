@@ -16,6 +16,12 @@ class AwsRdsInstance < Inspec.resource(1)
     "RDS Instance #{@db_instance_identifier}"
   end
 
+  def rds_db_instances
+    catch_aws_errors do
+      @rds_db_instances ||= BackendFactory.create(inspec_runner).describe_db_instances(db_instance_identifier: db_instance_identifier).db_instances
+    end
+  end
+
   private
 
   def validate_params(raw_params)
